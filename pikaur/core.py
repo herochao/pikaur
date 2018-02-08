@@ -14,6 +14,63 @@ def interactive_spawn(cmd, **kwargs):
     return process
 
 
+class MultipleTasksExecutorPool(object):
+    loop = None
+    pool_size = None
+
+    last_cmd_idx = None
+
+    def get_next_cmd(self):
+        if self.last_cmd_idx is not None:
+            self.last_cmd_idx += 1
+        else:
+            self.last_cmd_idx = 0
+        if self.last_cmd_idx > len(self.commands_list):
+            return None, None
+        return self.commands_list[self.last_cmd_idx]
+
+    def __init__(self, cmds, pool_size=None):
+        self.commands_list = list(cmds.items())
+        self.results = {}
+        self.futures = {}
+        self.pool_size = pool_size
+
+    def add_more_tasks(self):
+        while len(self.futures) < len(self.commands_list):
+            cmd_id, task_class = self.get_next_cmd()
+            if not cmd_id:
+                return
+            future = self.loop.create_task(
+                task_class.get_task(self.loop)
+            )
+            future.add_done_callback(self.create_process_done_callback(cmd_id))
+            self.futures[cmd_id] = future
+            self.tasks_queued += 1
+            if self.tasks_queued >= self.pool_size:
+                break
+
+    def create_process_done_callback(self, cmd_id):
+
+        def _process_done_callback(future):
+            result = future.result()
+            self.results[cmd_id] = result
+            if len(self.results) == len(self.commands_list):
+                self.loop.stop()
+            else:
+                self.tasks_queued -= 1
+                self.add_more_tasks()
+                print(len(self.commands_list) - len(self.results))
+
+        return _process_done_callback
+
+    def execute(self):
+        self.loop = asyncio.get_event_loop()
+        self.tasks_queued = 0
+        self.add_more_tasks()
+        self.loop.run_forever()
+        return self.results
+
+
 class MultipleTasksExecutor(object):
     loop = None
 

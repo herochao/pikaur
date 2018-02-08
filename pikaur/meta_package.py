@@ -55,6 +55,9 @@ def find_aur_updates(package_versions):
         pkg_name = result['Name']
         aur_version = result['Version']
         current_version = package_versions[pkg_name]
+        # if pkg_name == 'pikaur-git':
+            # import pudb
+            # pudb.set_trace()
         if compare_versions(current_version, aur_version):
             aur_update = PackageUpdate(
                 Name=pkg_name,
@@ -63,6 +66,9 @@ def find_aur_updates(package_versions):
                 Description=result['Description']
             )
             aur_updates.append(aur_update)
+        # else:
+            # if current_version != aur_version:
+                # print((pkg_name, current_version, aur_version))
     return aur_updates, not_found_aur_pkgs
 
 

@@ -2,9 +2,11 @@ import asyncio
 import ssl
 import email
 import json
+import itertools
+import string
 from urllib.parse import urlencode
 
-from .core import MultipleTasksExecutor
+from .core import MultipleTasksExecutor, MultipleTasksExecutorPool
 from .config import VERSION
 
 
@@ -169,3 +171,29 @@ def find_aur_packages(package_names):
         ]
 
     return json_results, not_found_packages
+
+
+_AUR_PKGS_LIST_CACHE = None
+
+
+def list_aur_packages():
+    global _AUR_PKGS_LIST_CACHE
+    if _AUR_PKGS_LIST_CACHE:
+        return _AUR_PKGS_LIST_CACHE
+
+    json_results = {}
+
+    results = MultipleTasksExecutorPool({
+        start_letters: AurTaskWorkerSearch(search_query=start_letters)
+        for start_letters in [
+            ''.join(mut) for mut in
+            itertools.permutations(string.ascii_lowercase + string.digits, 2)
+        ]
+    }, pool_size=64).execute()
+
+    for result in results.values():
+        for json_result in result.json['results']:
+            json_results[json_result['Name']] = json_result
+
+    _AUR_PKGS_LIST_CACHE = json_results
+    return json_results

@@ -1,4 +1,5 @@
 import os
+import sys
 import gzip
 import tempfile
 import shutil
@@ -9,7 +10,7 @@ from .core import (
     CmdTaskWorker, MultipleTasksExecutor,
     get_package_name_from_depend_line,
 )
-from .pprint import color_line
+from .pprint import color_line, get_term_width
 
 
 class PacmanTaskWorker(CmdTaskWorker):
@@ -261,7 +262,10 @@ class PackageDB_ALPM9(PackageDBCommon):  # pylint: disable=invalid-name
     @classmethod
     def get_repo_dict(cls):
         if not cls._repo_dict_cache:
-            print("Reading repository package databases...")
+            message = "Reading repository package databases..."
+            print(message, end='')
+
+            # print("Reading repository package databases...")
             result = {}
             temp_dir = tempfile.mkdtemp()
             sync_dir = '/var/lib/pacman/sync/'
@@ -298,7 +302,17 @@ class PackageDB_ALPM9(PackageDBCommon):  # pylint: disable=invalid-name
 
             # parse package databases
             # @TODO: try multiprocess pool here
-            for pkg_dir_name in os.listdir(temp_dir):
+            pkg_desc_dirs = os.listdir(temp_dir)
+
+            # width = int(get_term_width() * 0.9)
+            # print('.'*(width - len(message)))
+
+            width = get_term_width() - len(message)
+            pkg_num = len(pkg_desc_dirs)
+            print_ratio = pkg_num / width
+            progress_bar = 0
+
+            for index, pkg_dir_name in enumerate(pkg_desc_dirs):
                 if not os.path.isdir(os.path.join(temp_dir, pkg_dir_name)):
                     continue
                 db_dir = os.path.join(temp_dir, pkg_dir_name)
@@ -307,6 +321,13 @@ class PackageDB_ALPM9(PackageDBCommon):  # pylint: disable=invalid-name
                 ):
                     result[pkg.Name] = pkg
                 shutil.rmtree(db_dir)
+
+                if index / print_ratio > progress_bar:
+                    progress_bar += 1
+                    # print('#', end='')
+                    print('.', end='')
+                    sys.stdout.flush()
+            print()
 
             cls._repo_dict_cache = result
         return cls._repo_dict_cache
